@@ -8,10 +8,10 @@ LDFLAGS+=-lcap
 endif
 
 %.o: %.c
-	gcc $(CFLAGS) -c $^ -o $@
+	$(CC) $(CFLAGS) -c $^ -o $@
 
 jexec: jexec.o
-	gcc $(LDFLAGS) $^ -o $@
+	$(CC) $(LDFLAGS) $^ -o $@
 
 clean:
 	rm -f *.o jexec
