@@ -88,6 +88,10 @@ static void parse_args(int argc, char *argv[])
   vmArgsCount = classNameIndex - vmArgsIndex;
   vmArgs = &argv[vmArgsIndex];
   className = argv[classNameIndex];
+  for (i = 0; className[i] != '\0'; i++) {
+    if (className[i] == '.')
+      className[i] = '/';
+  }
   mainArgsCount = argc - (classNameIndex + 1);
   mainArgs = &argv[classNameIndex + 1];
 }
