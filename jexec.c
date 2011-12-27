@@ -54,7 +54,7 @@ static void parse_args(int argc, char *argv[])
 {
   int i;
   int vmArgsIndex;
-  int classNameIndex;
+  int classNameIndex = 0;
 
   for (i = 1; i < argc; i++) {
     if (!strcmp("-u", argv[i])) {
@@ -82,7 +82,7 @@ static void parse_args(int argc, char *argv[])
       break;
     }
   }
-  if (i >= argc) {
+  if (classNameIndex == 0) {
     syntax();
   }
   vmArgsCount = classNameIndex - vmArgsIndex;
