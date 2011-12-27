@@ -13,7 +13,9 @@
 #include <dlfcn.h>
 #include <signal.h>
 #include <sys/prctl.h>
+#ifdef CAPS_SUPPORT
 #include <sys/capability.h>
+#endif
 #include <pwd.h>
 #include <pthread.h>
 #include <jni.h>
@@ -40,7 +42,11 @@ static jmethodID shutdownMethod;
 
 static void syntax()
 {
+#ifdef CAPS_SUPPORT
   printf("syntax: jexec [-u user] [-c caps] [jvm options...] <classname> [params...]\n");
+#else
+  printf("syntax: jexec [-u user] [jvm options...] <classname> [params...]\n");
+#endif
   exit(1);
 }
 
@@ -57,9 +63,13 @@ static void parse_args(int argc, char *argv[])
       userName = argv[i];
     }
     else if (!strcmp("-c", argv[i])) {
+#ifdef CAPS_SUPPORT
       if (++i >= argc)
 	syntax();
       capsText = argv[i];
+#else
+      syntax();
+#endif
     }
     else {
       break;
@@ -101,6 +111,7 @@ static void set_user()
 
 static void set_caps()
 {
+#ifdef CAPS_SUPPORT
   if (capsText != NULL) {
     cap_t caps = cap_from_text(capsText);
     if (caps == NULL)
@@ -109,6 +120,7 @@ static void set_caps()
       fatal("Failed to set capabilities: %s\n", strerror(errno));
     cap_free(caps);
   }
+#endif
 }
 
 static void load_lib()
