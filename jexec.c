@@ -32,8 +32,6 @@ static char* className;
 static int mainArgsCount;
 static char** mainArgs;
 
-static jint (*jni_createvm)(JavaVM**, JNIEnv**, JavaVMInitArgs*);
-
 static JavaVM* jvm;
 static JNIEnv* mainEnv;
 static jclass mainClass;
@@ -133,16 +131,6 @@ static void set_caps()
 #endif
 }
 
-static void load_lib()
-{
-  void* lib = dlopen("libjvm.so", RTLD_GLOBAL | RTLD_NOW);
-  if (lib == NULL)
-    errx(50, "Could not open libjvm.so: %s", dlerror());
-  jni_createvm = dlsym(lib, "JNI_CreateJavaVM");
-  if (jni_createvm == NULL)
-    errx(50, "Could not find symbol JNI_CreateJavaVM: %s", dlerror());
-}
-
 static void* thread_func(void* arg)
 {
   JNIEnv *env;
@@ -182,7 +170,7 @@ static void create_jvm()
     vm_args.options[i].extraInfo = NULL;
   }
 
-  if (jni_createvm(&jvm, &mainEnv, &vm_args) != 0)
+  if (JNI_CreateJavaVM(&jvm, (void**)&mainEnv, &vm_args) != 0)
     errx(50, "JNI_CreateJavaVM() failed");
 
   mainClass = (*mainEnv)->FindClass(mainEnv, className);
@@ -236,7 +224,6 @@ int main(int argc, char *argv[])
   parse_args(argc, argv);
   set_user();
   set_caps();
-  load_lib();
   create_thread();
   create_jvm();
   install_sighandler();

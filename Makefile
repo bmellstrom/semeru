@@ -1,7 +1,7 @@
 all: jexec
 
 CFLAGS=-Wall -pedantic -I/usr/lib/jvm/java-6-sun/include -I/usr/lib/jvm/java-6-sun/include/linux
-LDFLAGS=-ldl -lpthread
+LDFLAGS=-ldl -lpthread -ljvm -L/usr/lib/jvm/java-6-sun/jre/lib/amd64/server
 ifdef CAPS_SUPPORT
 CFLAGS+=-D CAPS_SUPPORT
 LDFLAGS+=-lcap
