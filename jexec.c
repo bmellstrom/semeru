@@ -15,8 +15,8 @@
 #include <pwd.h>
 #include <pthread.h>
 #include <jni.h>
+#include <err.h>
 
-#define fatal(str...) do { fprintf(stderr, str); exit(50); } while (0)
 #ifdef CAPS_SUPPORT
 #include <sys/prctl.h>
 #include <sys/capability.h>
@@ -100,7 +100,7 @@ static void set_keepcaps(int enabled)
 {
 #ifdef CAPS_SUPPORT
     if ((capsText != NULL) && (prctl(PR_SET_KEEPCAPS, enabled) != 0))
-      fatal("prctl(PR_SET_KEEPCAPS, %d) failed\n", enabled);
+      err(50, "prctl(PR_SET_KEEPCAPS, %d) failed", enabled);
 #endif
 }
 
@@ -109,12 +109,12 @@ static void set_user()
   if (userName != NULL) {
     struct passwd *pwEnt = getpwnam(userName);
     if (pwEnt == NULL)
-      fatal("User not found: %s\n", userName);
+      errx(50, "User not found: %s", userName);
     set_keepcaps(1);
     if (setregid(pwEnt->pw_gid, pwEnt->pw_gid) != 0)
-      fatal("Failed to change group: %s\n", strerror(errno));
+      err(50, "Failed to change group");
     if (setreuid(pwEnt->pw_uid, pwEnt->pw_uid) != 0)
-      fatal("Failed to change user: %s\n", strerror(errno));
+      err(50, "Failed to change user");
     set_keepcaps(0);
   }
 }
@@ -125,9 +125,9 @@ static void set_caps()
   if (capsText != NULL) {
     cap_t caps = cap_from_text(capsText);
     if (caps == NULL)
-      fatal("Failed to parse capabilities: %s\n", capsText);
+      errx(50, "Failed to parse capabilities", capsText);
     if (cap_set_proc(caps) < 0)
-      fatal("Failed to set capabilities: %s\n", strerror(errno));
+      err(50, "Failed to set capabilities");
     cap_free(caps);
   }
 #endif
@@ -137,10 +137,10 @@ static void load_lib()
 {
   void* lib = dlopen("libjvm.so", RTLD_GLOBAL | RTLD_NOW);
   if (lib == NULL)
-    fatal("Could not open libjvm.so: %s\n", dlerror());
+    errx(50, "Could not open libjvm.so: %s", dlerror());
   jni_createvm = dlsym(lib, "JNI_CreateJavaVM");
   if (jni_createvm == NULL)
-    fatal("Could not find symbol JNI_CreateJavaVM: %s\n", dlerror());
+    errx(50, "Could not find symbol JNI_CreateJavaVM: %s", dlerror());
 }
 
 static void* thread_func(void* arg)
@@ -148,7 +148,7 @@ static void* thread_func(void* arg)
   JNIEnv *env;
   pthread_mutex_lock(&exit_lock);
   if ((*jvm)->AttachCurrentThreadAsDaemon(jvm, (void**)&env, NULL) != JNI_OK) {
-    fatal("AttachCurrentThreadAsDaemon() failed\n");
+    errx(50, "AttachCurrentThreadAsDaemon() failed");
   }
   (*env)->CallStaticVoidMethod(env, mainClass, shutdownMethod);
   if ((*env)->ExceptionOccurred(env) != NULL) {
@@ -163,9 +163,9 @@ static void create_thread()
   pthread_t hthread;
   pthread_mutex_lock(&exit_lock);
   if (pthread_create(&hthread, NULL, thread_func, jvm) != 0)
-    fatal("pthread_create() failed\n");
+    errx(50, "pthread_create() failed");
   if (pthread_detach(hthread) != 0)
-    fatal("pthread_detach() failed\n");
+    errx(50, "pthread_detach() failed");
 }
 
 static void create_jvm()
@@ -183,16 +183,17 @@ static void create_jvm()
   }
 
   if (jni_createvm(&jvm, &mainEnv, &vm_args) != 0)
-    fatal("JNI_CreateJavaVM() failed\n");
+    errx(50, "JNI_CreateJavaVM() failed");
+
   mainClass = (*mainEnv)->FindClass(mainEnv, className);
   if (mainClass == NULL)
-    fatal("Main class not found: %s\n", className);
+    errx(50, "Main class not found: %s", className);
   mainMethod = (*mainEnv)->GetStaticMethodID(mainEnv, mainClass, "main", "([Ljava/lang/String;)V");
   if (mainMethod == NULL)
-    fatal("Main method not found in: %s\n", className);
+    errx(50, "Main method not found in: %s", className);
   shutdownMethod = (*mainEnv)->GetStaticMethodID(mainEnv, mainClass, "shutdown", "()V");
   if (shutdownMethod == NULL)
-    fatal("Shutdown method not found in: %s\n", className);
+    errx(50, "Shutdown method not found in: %s", className);
 }
 
 static void sighandler(int num)
@@ -207,9 +208,9 @@ static void install_sighandler()
   sigemptyset(&sa.sa_mask);
   sa.sa_handler = sighandler;
   if (sigaction(SIGINT, &sa, NULL) != 0)
-    fatal("sigaction(SIGINT) failed\n");
+    err(50, "sigaction(SIGINT) failed");
   if (sigaction(SIGTERM, &sa, NULL) != 0)
-    fatal("sigaction(SIGTERM) failed\n");
+    err(50, "sigaction(SIGTERM) failed");
 }
 
 static void run()
