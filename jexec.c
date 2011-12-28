@@ -12,19 +12,19 @@
 #include <errno.h>
 #include <dlfcn.h>
 #include <signal.h>
-#include <sys/prctl.h>
-#ifdef CAPS_SUPPORT
-#include <sys/capability.h>
-#endif
 #include <pwd.h>
 #include <pthread.h>
 #include <jni.h>
 
 #define fatal(str...) do { fprintf(stderr, str); exit(50); } while (0)
+#ifdef CAPS_SUPPORT
+#include <sys/prctl.h>
+#include <sys/capability.h>
+static char* capsText = NULL;
+#endif
 
 static pthread_mutex_t exit_lock = PTHREAD_MUTEX_INITIALIZER;
 
-static char* capsText = NULL;
 static char* userName = NULL;
 static int vmArgsCount;
 static char** vmArgs;
@@ -96,20 +96,26 @@ static void parse_args(int argc, char *argv[])
   mainArgs = &argv[classNameIndex + 1];
 }
 
+static void set_keepcaps(int enabled)
+{
+#ifdef CAPS_SUPPORT
+    if ((capsText != NULL) && (prctl(PR_SET_KEEPCAPS, enabled) != 0))
+      fatal("prctl(PR_SET_KEEPCAPS, %d) failed\n", enabled);
+#endif
+}
+
 static void set_user()
 {
   if (userName != NULL) {
     struct passwd *pwEnt = getpwnam(userName);
     if (pwEnt == NULL)
       fatal("User not found: %s\n", userName);
-    if ((capsText != NULL) && (prctl(PR_SET_KEEPCAPS, 1) != 0))
-      fatal("prctl(PR_SET_KEEPCAPS, 1) failed\n");
+    set_keepcaps(1);
     if (setregid(pwEnt->pw_gid, pwEnt->pw_gid) != 0)
       fatal("Failed to change group: %s\n", strerror(errno));
     if (setreuid(pwEnt->pw_uid, pwEnt->pw_uid) != 0)
       fatal("Failed to change user: %s\n", strerror(errno));
-    if ((capsText != NULL) && (prctl(PR_SET_KEEPCAPS, 0) != 0))
-      fatal("prctl(PR_SET_KEEPCAPS, 0) failed\n");
+    set_keepcaps(0);
   }
 }
 
