@@ -10,7 +10,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include <dlfcn.h>
 #include <signal.h>
 #include <pwd.h>
 #include <pthread.h>

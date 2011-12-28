@@ -4,7 +4,7 @@ JAVA_LDFLAGS?=-ljvm -L$(JAVA_HOME)/jre/lib/amd64/server
 
 CFLAGS?=-Wall -pedantic
 CFLAGS+=$(JAVA_CFLAGS)
-LDFLAGS+=-ldl -lpthread $(JAVA_LDFLAGS)
+LDFLAGS+=-lpthread $(JAVA_LDFLAGS)
 
 ifdef CAPS_SUPPORT
 CFLAGS+=-D CAPS_SUPPORT
