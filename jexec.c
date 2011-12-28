@@ -63,7 +63,7 @@ static void parse_args(int argc, char *argv[])
     else if (!strcmp("-c", argv[i])) {
 #ifdef CAPS_SUPPORT
       if (++i >= argc)
-      syntax();
+        syntax();
       capsText = argv[i];
 #else
       syntax();
