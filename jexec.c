@@ -224,7 +224,7 @@ static void run()
   }
 
   (*mainEnv)->CallStaticVoidMethod(mainEnv, mainClass, mainMethod, args);
-  // Will never be reached if System.exit() is called
+  /* Will never be reached if System.exit() is called */
   if ((*mainEnv)->ExceptionOccurred(mainEnv)) {
     (*mainEnv)->ExceptionDescribe(mainEnv);
   }
