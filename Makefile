@@ -8,7 +8,7 @@ LDFLAGS+=-lpthread $(JAVA_LDFLAGS)
 
 ifdef CAPS_SUPPORT
 CFLAGS+=-D CAPS_SUPPORT
-LDFLAGS+=-lcap
+LDFLAGS+=-Wl,-Bstatic -lcap -Wl,-Bdynamic
 endif
 
 all: jexec
@@ -17,7 +17,8 @@ all: jexec
 	$(CC) $(CFLAGS) -c $^ -o $@
 
 jexec: jexec.o
-	$(CC) $(LDFLAGS) $^ -o $@
+	$(CC) $^ $(LDFLAGS) -o $@
+	strip $@
 
 clean:
 	rm -f *.o jexec
