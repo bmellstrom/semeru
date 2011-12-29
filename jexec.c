@@ -122,7 +122,7 @@ static void set_caps()
   if (capsText != NULL) {
     cap_t caps = cap_from_text(capsText);
     if (caps == NULL)
-      errx(50, "Failed to parse capabilities", capsText);
+      errx(50, "Failed to parse capabilities: %s", capsText);
     if (cap_set_proc(caps) < 0)
       err(50, "Failed to set capabilities");
     cap_free(caps);
