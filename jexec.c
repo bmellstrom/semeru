@@ -11,20 +11,20 @@
 #include <string.h>
 #include <errno.h>
 #include <signal.h>
-#include <pwd.h>
 #include <pthread.h>
 #include <jni.h>
 #include <err.h>
 
 #ifdef CAPS_SUPPORT
+#include <pwd.h>
 #include <sys/prctl.h>
 #include <sys/capability.h>
+static char* userName = NULL;
 static char* capsText = NULL;
 #endif
 
 static pthread_mutex_t exit_lock = PTHREAD_MUTEX_INITIALIZER;
 
-static char* userName = NULL;
 static int vmArgsCount;
 static char** vmArgs;
 static char* className;
@@ -42,36 +42,34 @@ static void syntax()
 #ifdef CAPS_SUPPORT
   printf("syntax: jexec [-u user] [-c caps] [jvm options...] <classname> [params...]\n");
 #else
-  printf("syntax: jexec [-u user] [jvm options...] <classname> [params...]\n");
+  printf("syntax: jexec [jvm options...] <classname> [params...]\n");
 #endif
   exit(1);
 }
 
 static void parse_args(int argc, char *argv[])
 {
-  int i;
+  int i = 1;
   int vmArgsIndex;
   int classNameIndex = 0;
 
-  for (i = 1; i < argc; i++) {
+#ifdef CAPS_SUPPORT
+  for (; i < argc; i++) {
     if (!strcmp("-u", argv[i])) {
       if (++i >= argc)
         syntax();
       userName = argv[i];
     }
     else if (!strcmp("-c", argv[i])) {
-#ifdef CAPS_SUPPORT
       if (++i >= argc)
         syntax();
       capsText = argv[i];
-#else
-      syntax();
-#endif
     }
     else {
       break;
     }
   }
+#endif
   vmArgsIndex = i;
   for (; i < argc; i++) {
     if (argv[i][0] != '-') {
@@ -93,12 +91,11 @@ static void parse_args(int argc, char *argv[])
   mainArgs = &argv[classNameIndex + 1];
 }
 
+#ifdef CAPS_SUPPORT
 static void set_keepcaps(int enabled)
 {
-#ifdef CAPS_SUPPORT
-    if ((capsText != NULL) && (prctl(PR_SET_KEEPCAPS, enabled) != 0))
-      err(50, "prctl(PR_SET_KEEPCAPS, %d) failed", enabled);
-#endif
+  if ((capsText != NULL) && (prctl(PR_SET_KEEPCAPS, enabled) != 0))
+    err(50, "prctl(PR_SET_KEEPCAPS, %d) failed", enabled);
 }
 
 static void set_user()
@@ -118,7 +115,6 @@ static void set_user()
 
 static void set_caps()
 {
-#ifdef CAPS_SUPPORT
   if (capsText != NULL) {
     cap_t caps = cap_from_text(capsText);
     if (caps == NULL)
@@ -127,8 +123,8 @@ static void set_caps()
       err(50, "Failed to set capabilities");
     cap_free(caps);
   }
-#endif
 }
+#endif
 
 static void* thread_func(void* arg)
 {
@@ -224,8 +220,10 @@ static void run()
 int main(int argc, char *argv[])
 {
   parse_args(argc, argv);
+#ifdef CAPS_SUPPORT
   set_user();
   set_caps();
+#endif
   create_thread();
   create_jvm();
   install_sighandler();
