@@ -202,9 +202,12 @@ static void install_sighandler()
 
 static void run()
 {
-  jclass stringClass = (*mainEnv)->FindClass(mainEnv, "java/lang/String");
-  jobjectArray args = (*mainEnv)->NewObjectArray(mainEnv, mainArgsCount, stringClass, NULL);
   int i;
+  jclass stringClass;
+  jobjectArray args;
+
+  stringClass = (*mainEnv)->FindClass(mainEnv, "java/lang/String");
+  args = (*mainEnv)->NewObjectArray(mainEnv, mainArgsCount, stringClass, NULL);
   for (i = 0; i < mainArgsCount; i++) {
     jstring jstr = (*mainEnv)->NewStringUTF(mainEnv, mainArgs[i]);
     (*mainEnv)->SetObjectArrayElement(mainEnv, args, i, jstr);
