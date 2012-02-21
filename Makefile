@@ -6,7 +6,9 @@ CFLAGS?=-Wall -pedantic
 CFLAGS+=$(JAVA_CFLAGS)
 LDFLAGS+=-lpthread $(JAVA_LDFLAGS)
 
-ifdef CAPS_SUPPORT
+CAPS_SUPPORT?=1
+
+ifeq ($(CAPS_SUPPORT), 1)
 CFLAGS+=-D CAPS_SUPPORT
 LDFLAGS+=-Wl,-Bstatic -lcap -Wl,-Bdynamic
 endif
