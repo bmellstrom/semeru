@@ -11,14 +11,14 @@ CFLAGS+=-D CAPS_SUPPORT
 LDFLAGS+=-Wl,-Bstatic -lcap -Wl,-Bdynamic
 endif
 
-all: jexec
+all: semeru
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $^ -o $@
 
-jexec: jexec.o
+semeru: semeru.o
 	$(CC) $^ $(LDFLAGS) -o $@
 	strip $@
 
 clean:
-	rm -f *.o jexec
+	rm -f *.o semeru

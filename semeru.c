@@ -40,9 +40,9 @@ static jmethodID shutdownMethod;
 static void syntax()
 {
 #ifdef CAPS_SUPPORT
-  printf("syntax: jexec [-u user] [-c caps] [jvm options...] <classname> [params...]\n");
+  printf("syntax: semeru [-u user] [-c caps] [jvm options...] <classname> [params...]\n");
 #else
-  printf("syntax: jexec [jvm options...] <classname> [params...]\n");
+  printf("syntax: semeru [jvm options...] <classname> [params...]\n");
 #endif
   exit(1);
 }
