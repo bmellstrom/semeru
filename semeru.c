@@ -23,7 +23,7 @@ static char* userName = NULL;
 static char* capsText = NULL;
 #endif
 
-static pthread_mutex_t exit_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t threadLock = PTHREAD_MUTEX_INITIALIZER;
 
 static int vmArgsCount;
 static char** vmArgs;
@@ -36,6 +36,9 @@ static JNIEnv* mainEnv;
 static jclass mainClass;
 static jmethodID mainMethod;
 static jmethodID shutdownMethod;
+static jmethodID reloadMethod;
+
+static volatile int lastSignal = 0;
 
 static void syntax()
 {
@@ -129,22 +132,26 @@ static void set_caps()
 static void* thread_func(void* arg)
 {
   JNIEnv *env;
-  pthread_mutex_lock(&exit_lock);
-  if ((*jvm)->AttachCurrentThreadAsDaemon(jvm, (void**)&env, NULL) != JNI_OK) {
-    errx(50, "AttachCurrentThreadAsDaemon() failed");
+  jmethodID method;
+  while (1) {
+    pthread_mutex_lock(&threadLock);
+    method = (lastSignal == SIGHUP) ? reloadMethod : shutdownMethod;
+    if ((*jvm)->AttachCurrentThreadAsDaemon(jvm, (void**)&env, NULL) != JNI_OK) {
+      errx(50, "AttachCurrentThreadAsDaemon() failed");
+    }
+    (*env)->CallStaticVoidMethod(env, mainClass, method);
+    if ((*env)->ExceptionOccurred(env) != NULL) {
+      (*env)->ExceptionDescribe(env);
+    }
+    (*jvm)->DetachCurrentThread(jvm);
   }
-  (*env)->CallStaticVoidMethod(env, mainClass, shutdownMethod);
-  if ((*env)->ExceptionOccurred(env) != NULL) {
-    (*env)->ExceptionDescribe(env);
-  }
-  (*jvm)->DetachCurrentThread(jvm);
   return NULL;
 }
 
 static void create_thread()
 {
   pthread_t hthread;
-  pthread_mutex_lock(&exit_lock);
+  pthread_mutex_lock(&threadLock);
   if (pthread_create(&hthread, NULL, thread_func, jvm) != 0)
     errx(50, "pthread_create() failed");
   if (pthread_detach(hthread) != 0)
@@ -177,11 +184,13 @@ static void create_jvm()
   shutdownMethod = (*mainEnv)->GetStaticMethodID(mainEnv, mainClass, "shutdown", "()V");
   if (shutdownMethod == NULL)
     errx(50, "Shutdown method not found in: %s", className);
+  reloadMethod = (*mainEnv)->GetStaticMethodID(mainEnv, mainClass, "reload", "()V");
 }
 
 static void sighandler(int num)
 {
-  pthread_mutex_unlock(&exit_lock);
+  lastSignal = num;
+  pthread_mutex_unlock(&threadLock);
 }
 
 static void install_sighandler()
@@ -194,6 +203,8 @@ static void install_sighandler()
     err(50, "sigaction(SIGINT) failed");
   if (sigaction(SIGTERM, &sa, NULL) != 0)
     err(50, "sigaction(SIGTERM) failed");
+  if ((reloadMethod != NULL) && (sigaction(SIGHUP, &sa, NULL) != 0))
+    err(50, "sigaction(SIGHUP) failed");
 }
 
 static void run()
