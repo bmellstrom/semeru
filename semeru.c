@@ -185,6 +185,7 @@ static void create_jvm()
   if (shutdownMethod == NULL)
     errx(50, "Shutdown method not found in: %s", className);
   reloadMethod = (*mainEnv)->GetStaticMethodID(mainEnv, mainClass, "reload", "()V");
+  (*mainEnv)->ExceptionClear(mainEnv); /* Ignore possible exception caused by missing reload() */
 }
 
 static void sighandler(int num)
