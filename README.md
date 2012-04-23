@@ -22,7 +22,7 @@ the following signature in the main class:
 
     public static void main(String[] args)
 
-The program will exit if/when this method returns. When a SIGINT och SIGTERM signal
+The program will exit if/when this method returns. When a SIGINT or SIGTERM signal
 is received, the following method will be executed in a separate thread:
 
     public static void shutdown()
