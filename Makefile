@@ -20,7 +20,6 @@ all: semeru
 
 semeru: semeru.o
 	$(CC) $^ $(LDFLAGS) -o $@
-	strip $@
 
 clean:
 	rm -f *.o semeru
@@ -28,3 +27,7 @@ clean:
 install: all
 	mkdir -p $(DESTDIR)/usr/sbin/
 	install -m 755 semeru $(DESTDIR)/usr/sbin/
+
+install-strip: all
+	mkdir -p $(DESTDIR)/usr/sbin/
+	install -s -m 755 semeru $(DESTDIR)/usr/sbin/
