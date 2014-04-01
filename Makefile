@@ -24,3 +24,7 @@ semeru: semeru.o
 
 clean:
 	rm -f *.o semeru
+
+install: all
+	mkdir -p $(DESTDIR)/usr/sbin/
+	install -m 755 semeru $(DESTDIR)/usr/sbin/
