@@ -53,4 +53,8 @@ This can for example be done as follows (tweak as necessary):
 
 You will also probably need to supply a class path to the JVM. Example:
 
-    ./semeru -Djava.class.path=examples Example1
+    ./semeru -cp examples Example1
+
+The -cp option also supports wildcard expansion of jar files if the name ends with a slash plus a star:
+
+    ./semeru -cp lib1:lib2/*:lib3/* my.class.name

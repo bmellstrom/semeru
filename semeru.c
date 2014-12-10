@@ -14,6 +14,7 @@
 #include <pthread.h>
 #include <jni.h>
 #include <err.h>
+#include <dirent.h>
 
 #ifdef CAPS_SUPPORT
 #include <pwd.h>
@@ -27,6 +28,7 @@ static pthread_mutex_t threadLock = PTHREAD_MUTEX_INITIALIZER;
 
 static int vmArgsCount;
 static char** vmArgs;
+static char* classPath = NULL;
 static char* className;
 static int mainArgsCount;
 static char** mainArgs;
@@ -43,11 +45,148 @@ static volatile int lastSignal = 0;
 static void syntax()
 {
 #ifdef CAPS_SUPPORT
-  printf("syntax: semeru [-u user] [-c caps] [jvm options...] <classname> [params...]\n");
+  printf("syntax: semeru [-u user] [-c caps] [-cp classpath] [jvm options...] <classname> [params...]\n");
 #else
-  printf("syntax: semeru [jvm options...] <classname> [params...]\n");
+  printf("syntax: semeru [-cp classpath] [jvm options...] <classname> [params...]\n");
 #endif
   exit(1);
+}
+
+struct strlist {
+  char **items;
+  size_t size;
+  size_t capacity;
+};
+
+static void strlist_init(struct strlist *p, size_t capacity)
+{
+  p->items = calloc(capacity, sizeof(char*));
+  p->size = 0;
+  p->capacity = capacity;
+}
+
+static void strlist_destroy(struct strlist *p)
+{
+  size_t i;
+  for (i = 0; i < p->size; i++) {
+    free(p->items[i]);
+  }
+  free(p->items);
+  p->items = NULL;
+}
+
+static void strlist_add(struct strlist *p, char *item)
+{
+  if (p->size >= p->capacity) {
+    p->capacity *= 2;
+    p->items = realloc(p->items, p->capacity * sizeof(char*));
+  }
+  p->items[p->size] = strdup(item);
+  p->size++;
+}
+
+static void strlist_remove_last(struct strlist *p)
+{
+  if (p->size > 0) {
+    p->size--;
+    free(p->items[p->size]);
+    p->items[p->size] = NULL;
+  }
+}
+
+static char* strlist_concat(struct strlist *p)
+{
+  size_t i, size = 0;
+  char *result, *pos;
+  for (i = 0; i < p->size; i++) {
+    size += strlen(p->items[i]);
+  }
+  result = calloc(size + 1, 1);
+  pos = result;
+  for (i = 0; i < p->size; i++) {
+    size_t len = strlen(p->items[i]);
+    memcpy(pos, p->items[i], len);
+    pos += len;
+  }
+  return result;
+}
+
+static void split(char *str, char ch, struct strlist *dst)
+{
+  char *p = str;
+  while ((p = strchr(str, ch)) != NULL) {
+    *p = '\0';
+    strlist_add(dst, str);
+    *p = ch;
+    str = p + 1;
+  }
+  strlist_add(dst, str);
+}
+
+static int is_jarfile(char *filename)
+{
+  size_t len = strlen(filename);
+  char *ext = filename + len - 4;
+  return ((len <= 4) || (strchr(filename, ':') != NULL) || strcasecmp(ext, ".jar")) ? 0 : 1;
+}
+
+static void expand_jars(char *path, struct strlist *dst)
+{
+  struct dirent *entry;
+  DIR* dir;
+  size_t path_len = strlen(path);
+
+  if ((path_len < 2) || (path[path_len - 2] != '/') || (path[path_len - 1] != '*')) {
+    strlist_add(dst, path);
+    strlist_add(dst, ":");
+    return;
+  }
+
+  path[path_len - 1] = '\0'; /* Cut off trailing star */
+  dir = opendir(path);
+  if (dir == NULL) {
+    path[path_len - 1] = '*'; /* Restore original value */
+    return;
+  }
+
+  while ((entry = readdir(dir)) != NULL) {
+#ifdef _DIRENT_HAVE_D_TYPE
+    if (entry->d_type != DT_REG)
+      continue;
+#endif
+    if (is_jarfile(entry->d_name)) {
+      strlist_add(dst, path);
+      strlist_add(dst, entry->d_name);
+      strlist_add(dst, ":");
+    }
+  }
+  closedir(dir);
+  path[path_len - 1] = '*'; /* Restore original value */
+}
+
+static void expand_class_path(char *cp, struct strlist *dst) {
+  struct strlist wildcards;
+  size_t i;
+  strlist_init(&wildcards, 16);
+  split(cp, ':', &wildcards);
+  for (i = 0; i < wildcards.size; i++) {
+    expand_jars(wildcards.items[i], dst);
+  }
+  strlist_destroy(&wildcards);
+}
+
+static char* create_class_path_option(char *cp) {
+  struct strlist parts;
+  char *result;
+  strlist_init(&parts, 128);
+  strlist_add(&parts, "-Djava.class.path=");
+  expand_class_path(cp, &parts);
+  if (parts.size > 1) {
+    strlist_remove_last(&parts); /* last entry is a ':' */
+  }
+  result = strlist_concat(&parts);
+  strlist_destroy(&parts);
+  return result;
 }
 
 static void parse_args(int argc, char *argv[])
@@ -56,9 +195,14 @@ static void parse_args(int argc, char *argv[])
   int vmArgsIndex;
   int classNameIndex = 0;
 
-#ifdef CAPS_SUPPORT
   for (; i < argc; i++) {
-    if (!strcmp("-u", argv[i])) {
+    if (!strcmp("-cp", argv[i])) {
+      if (++i >= argc)
+        syntax();
+      classPath = argv[i];
+    }
+#ifdef CAPS_SUPPORT
+    else if (!strcmp("-u", argv[i])) {
       if (++i >= argc)
         syntax();
       userName = argv[i];
@@ -68,11 +212,11 @@ static void parse_args(int argc, char *argv[])
         syntax();
       capsText = argv[i];
     }
+#endif
     else {
       break;
     }
   }
-#endif
   vmArgsIndex = i;
   for (; i < argc; i++) {
     if (argv[i][0] != '-') {
@@ -160,15 +304,20 @@ static void create_thread()
 
 static void create_jvm()
 {
-  int i;
+  int i, option_count;
   JavaVMInitArgs vm_args;
 
+  option_count = vmArgsCount + ((classPath != NULL) ? 1 : 0);
   vm_args.version = JNI_VERSION_1_4;
   vm_args.ignoreUnrecognized = JNI_FALSE;
-  vm_args.nOptions = vmArgsCount;
-  vm_args.options = malloc(vmArgsCount * sizeof(JavaVMOption));
+  vm_args.nOptions = option_count;
+  vm_args.options = calloc(option_count, sizeof(JavaVMOption));
   for (i = 0; i < vmArgsCount; i++) {
     vm_args.options[i].optionString = vmArgs[i];
+    vm_args.options[i].extraInfo = NULL;
+  }
+  if (classPath != NULL) {
+    vm_args.options[i].optionString = create_class_path_option(classPath);
     vm_args.options[i].extraInfo = NULL;
   }
 
